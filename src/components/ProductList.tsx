@@ -127,9 +127,6 @@ const ProductList = ({ products }: IProduct) => {
                               <p className="card-text">Stock: {item?.stock}</p>
 
                               <button
-                                // onClick={(e) => {
-                                //   addToCart(item);
-                                // }}
                                 type="button"
                                 className="btn btn-outline-success"
                               >
