@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-
 import { AuthContext, authContextDefaults } from "./AuthContext";
 
 interface IProps {
@@ -7,10 +6,18 @@ interface IProps {
 }
 
 export const AuthContextProvider = ({ children }: IProps) => {
-  const [state, setState] = useState<any>(authContextDefaults);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    localStorage.getItem("login") === "true" ||
+      authContextDefaults.isAuthenticated
+  );
+
+  const setAuth = (auth: boolean) => {
+    setIsAuthenticated(auth);
+    localStorage.setItem("login", auth ? "true" : "false");
+  };
 
   return (
-    <AuthContext.Provider value={{ ...state, setState }}>
+    <AuthContext.Provider value={{ isAuthenticated, setAuth }}>
       {children}
     </AuthContext.Provider>
   );

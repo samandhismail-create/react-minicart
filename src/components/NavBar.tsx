@@ -1,71 +1,137 @@
 import { useNavigate } from "react-router";
 import useFromStore from "../hooks/useFromStore";
-import { cartStore } from "../services/carts";
-import { useContext } from "react";
+import { useCartStore } from "../services/carts";
+import { useContext, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
+import { FiShoppingCart } from "react-icons/fi";
 
 const Navbar = () => {
-  const cart = useFromStore(cartStore, (state) => state.cart);
+  const cart = useFromStore(useCartStore, (state) => state.cart);
   const context = useContext(AuthContext);
-
-  console.log(context, "context");
-
   const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+
+  const isLoggedIn = context.isAuthenticated;
+
+  const handleNavigate = (path: string) => {
+    navigate(path);
+    setOpen(false);
+  };
+
+  const handleLogout = () => {
+    context.setAuth(false);
+    useCartStore.getState().emptyCart();
+    navigate("/login");
+    setOpen(false);
+  };
+
+  const cartQuantity = cart?.length || 0;
 
   return (
-    <nav className="navbar navbar-expand-lg navbar-primary bg-light sticky-top">
-      <div className="container-fluid">
-        <span
-          className="navbar-brand"
-          onClick={() => navigate("/")}
-          style={{ cursor: "pointer" }}
-        >
-          InfoMart
-        </span>
+    <nav className="sticky top-0 z-50 bg-white shadow">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex h-16 items-center justify-between">
+          <span
+            onClick={() => handleNavigate("/")}
+            className="text-2xl font-bold text-blue-600 cursor-pointer"
+          >
+            InfoMart
+          </span>
 
-        <div className="collapse navbar-collapse" id="navbarSupportedContent">
-          <ul className="navbar-nav me-auto mb-2 mb-lg-0"></ul>
-          <form className="d-flex" style={{ gap: "4px" }}>
-            {context?.isAuthenticated ||
-            localStorage.getItem("login") === "true" ? (
+          <div className="hidden md:flex items-center gap-4">
+            {isLoggedIn ? (
               <>
                 <button
-                  className="btn btn-outline-primary position-relative"
-                  onClick={() => navigate("/profile")}
+                  onClick={() => handleNavigate("/profile")}
+                  className="px-4 py-2 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 transition"
                 >
                   Profile
                 </button>
 
                 <button
-                  className="btn btn-outline-primary position-relative"
-                  onClick={() => localStorage.clear()}
+                  onClick={handleLogout}
+                  className="px-4 py-2 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 transition"
                 >
                   Logout
                 </button>
               </>
             ) : (
               <button
-                className="btn btn-outline-primary position-relative"
-                onClick={() => navigate("/login")}
+                onClick={() => handleNavigate("/login")}
+                className="px-4 py-2 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 transition"
               >
                 Login
               </button>
             )}
+
             <button
-              onClick={() => navigate("/cart")}
-              className="btn btn-outline-primary position-relative"
-              type="button"
+              onClick={() => handleNavigate("/cart")}
+              className="relative flex items-center px-4 py-2 border border-green-600 text-green-600 rounded hover:bg-green-50 transition"
             >
-              Cart{" "}
-              <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success">
-                {cart?.length || "0"}
-                <span className="visually-hidden">unread messages</span>
-              </span>
+              <FiShoppingCart className="text-xl mr-2" />
+              Cart
+              {cartQuantity > 0 && (
+                <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold">
+                  {cartQuantity}
+                </span>
+              )}
             </button>
-          </form>
+          </div>
+
+          <button
+            onClick={() => setOpen(!open)}
+            className="md:hidden p-2 rounded hover:bg-gray-100"
+          >
+            ☰
+          </button>
         </div>
       </div>
-      <div></div>
+
+      {open && (
+        <div className="md:hidden bg-white border-t shadow-md">
+          <div className="flex flex-col gap-2 p-4">
+            {isLoggedIn ? (
+              <>
+                <button
+                  onClick={() => handleNavigate("/profile")}
+                  className="w-full text-left px-4 py-2 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 transition"
+                >
+                  Profile
+                </button>
+
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 transition"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => handleNavigate("/login")}
+                className="w-full text-left px-4 py-2 border border-blue-600 text-blue-600 rounded hover:bg-blue-50 transition"
+              >
+                Login
+              </button>
+            )}
+
+            <button
+              onClick={() => handleNavigate("/cart")}
+              className="w-full flex justify-between items-center px-4 py-2 border border-green-600 text-green-600 rounded hover:bg-green-50 transition"
+            >
+              <span className="flex items-center">
+                <FiShoppingCart className="text-xl mr-2" />
+                Cart
+              </span>
+              {cartQuantity > 0 && (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white text-xs font-semibold">
+                  {cartQuantity}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 };
