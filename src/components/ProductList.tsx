@@ -1,152 +1,188 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { Product } from "../types";
-import { Button } from "react-bootstrap";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { debounce } from "lodash";
-import { cartStore } from "../services/carts";
+import { useCartStore } from "../services/carts";
 
 interface IProduct {
   products: Product[];
 }
+
+const ITEMS_PER_PAGE = 10;
+
 const ProductList = ({ products }: IProduct) => {
-  const [filterValue, setFilterValue] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState<string>("");
+  const [searchText, setSearchText] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [loadingIds, setLoadingIds] = useState<number[]>([]);
 
-  const [productList, setProductList] = useState<Product[]>([]);
+  const addToCart = useCartStore((state) => state.addToCart);
 
-  const categories = products.map((item) => item.category);
-  const uniqueCategories = [...new Set(categories)];
-  const addToCart = cartStore((state) => state.addToCart);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentPage = Number(searchParams.get("page") || 1);
 
-  const filteredProducts = useMemo(
-    () =>
-      products.filter(
-        (p) =>
-          p.category === debouncedQuery ||
-          p.title.toLowerCase() === debouncedQuery
-      ),
-    [debouncedQuery, products]
+  const categories = useMemo(
+    () => Array.from(new Set(products.map((p) => p.category))),
+    [products]
   );
 
-  const debouncedUpdate = useMemo(
+  const debouncedSearch = useMemo(
     () =>
-      debounce((val: string) => {
-        setDebouncedQuery(val);
-      }, 500),
+      debounce((value: string) => {
+        setSearchText(value);
+      }, 400),
     []
   );
 
-  console.log(filterValue, "filterValue");
-
   useEffect(() => {
-    if (debouncedQuery && filteredProducts?.length === 0) {
-      setProductList([]);
-    } else if (debouncedQuery && filteredProducts?.length > 0) {
-      setProductList(filteredProducts);
-    } else {
-      setProductList(products);
-    }
-  }, [debouncedQuery, filteredProducts, products]);
+    return () => {
+      debouncedSearch.cancel();
+    };
+  }, [debouncedSearch]);
+
+  const filteredProducts = useMemo(() => {
+    const text = searchText.toLowerCase();
+
+    return products.filter((p) => {
+      if (selectedCategory && p.category !== selectedCategory) return false;
+      if (text && !p.title.toLowerCase().includes(text)) return false;
+      return true;
+    });
+  }, [products, searchText, selectedCategory]);
+
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredProducts, currentPage]);
+
+  const goToPage = (page: number) => {
+    setSearchParams({ page: page.toString() });
+  };
+
+  const handleAddToCart = (item: Product) => {
+    setLoadingIds((prev) => [...prev, item.id]);
+
+    setTimeout(() => {
+      addToCart(item);
+      setLoadingIds((prev) => prev.filter((id) => id !== item.id));
+    }, 300);
+  };
 
   return (
-    <>
-      <div className="row">
-        {uniqueCategories.map((item, index) => {
-          return (
-            <div className="col-1">
-              <Button
-                key={index}
-                variant={
-                  debouncedQuery === item
-                    ? "outline-success"
-                    : "outline-primary"
-                }
-                onClick={() => {
-                  setFilterValue(item);
-                  setDebouncedQuery(item);
-                }}
-              >
-                {item}
-              </Button>
-            </div>
-          );
-        })}
+    <div className="max-w-7xl mx-auto px-4">
+      {/* Categories */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          onClick={() => {
+            setSelectedCategory("");
+            goToPage(1);
+          }}
+          className={`px-4 py-2 border rounded ${
+            !selectedCategory
+              ? "border-green-600 text-green-600"
+              : "border-blue-600 text-blue-600"
+          }`}
+        >
+          All
+        </button>
+
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => {
+              setSelectedCategory(cat);
+              goToPage(1);
+            }}
+            className={`px-4 py-2 border rounded ${
+              selectedCategory === cat
+                ? "border-green-600 text-green-600"
+                : "border-blue-600 text-blue-600"
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
       </div>
-      <div className="container my-5 ">
-        {
-          <div>
-            <div className="row">
-              <div className="col-lg-8 offset-md-2 mb-2">
-                <div className="form-group-icon sticky-top">
-                  <input
-                    type="text"
-                    placeholder="Search by product name or category...."
-                    className="form-control"
-                    value={filterValue}
-                    onChange={(e) => {
-                      setFilterValue(e.target.value);
-                      debouncedUpdate(e.target.value);
-                    }}
-                  />
-                  <i className="ic-search"></i>
+
+      <div className="mb-6 sticky top-16 bg-white z-10 py-2">
+        <input
+          type="text"
+          placeholder="Search products..."
+          onChange={(e) => {
+            debouncedSearch(e.target.value);
+            goToPage(1);
+          }}
+          className="w-full border rounded px-4 py-2"
+        />
+      </div>
+
+      {paginatedProducts.length ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {paginatedProducts.map((item) => (
+            <div
+              key={item.id}
+              className="bg-white rounded-lg shadow hover:shadow-lg transition"
+            >
+              <Link to={`/product/${item.id}`}>
+                <img
+                  src={item.thumbnail}
+                  alt={item.title}
+                  className="h-48 w-full object-contain p-4"
+                />
+                <div className="p-4">
+                  <h3 className="font-semibold truncate">{item.title}</h3>
+                  <p className="text-sm mt-2">Price: {item.price}</p>
+                  <p className="text-sm text-gray-600">Stock: {item.stock}</p>
                 </div>
+              </Link>
+
+              <div className="p-4">
+                <button
+                  disabled={loadingIds.includes(item.id)}
+                  onClick={() => handleAddToCart(item)}
+                  className="w-full border border-green-600 text-green-600 py-2 rounded"
+                >
+                  {loadingIds.includes(item.id) ? "Adding..." : "Add To Cart"}
+                </button>
               </div>
             </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-center text-gray-500 mt-10">No Product Found</p>
+      )}
 
-            <div className="row">
-              {productList?.length > 0
-                ? productList?.map((item) => {
-                    return (
-                      <div className="col-3" key={item?.id}>
-                        <Link
-                          to={`/product/${item.id}`}
-                          style={{ textDecoration: "none", color: "inherit" }}
-                        >
-                          <div
-                            className="card mb-4"
-                            style={{
-                              boxShadow: "0 9px 9px #d8dde0",
-                            }}
-                          >
-                            <img
-                              src={item.thumbnail}
-                              className="card-img-top"
-                              alt="..."
-                              height={"200px"}
-                              width={"200px"}
-                              style={{ padding: "1rem", objectFit: "contain" }}
-                            />
-                            <div className="card-body">
-                              <h5 className="card-title">{item?.title}</h5>
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-2 mt-10">
+          <button
+            disabled={currentPage === 1}
+            onClick={() => goToPage(currentPage - 1)}
+            className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Prev
+          </button>
 
-                              <p className="card-text">
-                                <span className="badge badge-success">
-                                  Price: {item?.price}{" "}
-                                </span>
-                              </p>
-                              <p className="card-text">Stock: {item?.stock}</p>
+          {[...Array(totalPages)].map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goToPage(i + 1)}
+              className={currentPage === i + 1 ? "font-bold" : ""}
+            >
+              {i + 1}
+            </button>
+          ))}
 
-                              <button
-                                // onClick={(e) => {
-                                //   addToCart(item);
-                                // }}
-                                type="button"
-                                className="btn btn-outline-success"
-                              >
-                                Add To Cart
-                              </button>
-                            </div>
-                          </div>
-                        </Link>
-                      </div>
-                    );
-                  })
-                : "No Product Found"}
-            </div>
-          </div>
-        }
-      </div>
-    </>
+          <button
+            disabled={currentPage === totalPages}
+            onClick={() => goToPage(currentPage + 1)}
+            className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </div>
   );
 };
 

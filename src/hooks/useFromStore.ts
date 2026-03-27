@@ -1,15 +1,16 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function useFromStore<T, F>(
-  store: (callback: (state: T) => unknown) => unknown,
-  storeCallback: (state: T) => F
-) {
-  const stateOfStore = store(storeCallback) as F;
-  const [state, setState] = useState<F>();
+  store: { subscribe: (callback: () => void) => () => void; getState: () => T },
+  selector: (state: T) => F
+): F {
+  const [state, setState] = useState<F>(() => selector(store.getState()));
 
   useEffect(() => {
-    setState(stateOfStore);
-  }, [stateOfStore]);
+    const callback = () => setState(selector(store.getState()));
+    const unsubscribe = store.subscribe(callback);
+    return unsubscribe; 
+  }, [store, selector]);
 
   return state;
 }
